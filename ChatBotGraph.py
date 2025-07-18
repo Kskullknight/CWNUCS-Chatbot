@@ -21,6 +21,7 @@ class ChatbotState(TypedDict):
     metadata: Dict[str, Any]
     streaming: bool  # 스트리밍 모드 플래그
 
+#나는 임계값을 0.3으로 테스트하긴했는데 그냥 0.5 그대로 둘게
 class ChatBotGraph:
     def __init__(self, embedding_model, faiss_index, documents, threshold=0.5):
         self.embedding_model = embedding_model
