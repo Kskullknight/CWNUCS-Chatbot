@@ -16,6 +16,7 @@ class ChatMessage(BaseModel):
 class LLMAPIClient:
     """LLM API 클라이언트 (스트리밍 지원)"""
 
+# 테스트는 로컬로(http://10.100.54.177:8000) 했는데 원격 그대로 둘게 localhost
     def __init__(
         self, 
         base_url="http://localhost:8000",

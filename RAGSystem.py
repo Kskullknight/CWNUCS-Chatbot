@@ -13,7 +13,10 @@ from langchain_core.messages import HumanMessage
 from typing import Dict, Any
 import asyncio
 
+#pip install rank-bm25
+from rank_bm25 import BM25Okapi
 
+#테스트할땐 GPU부분 주석으로 했었어
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
@@ -30,7 +33,7 @@ class AdvancedSchoolNoticeRAG:
         self.data_file_path = data_file_path
         self.model_name = model_name
         
-        self.embedding_model = SentenceTransformer("Qwen/Qwen3-Embedding-8B")
+        self.embedding_model = SentenceTransformer(self.model_name)
         self.embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
         
         self.llm_client = LLMAPIClient()
@@ -73,6 +76,13 @@ class AdvancedSchoolNoticeRAG:
         # 문서 로드
         self._load_documents()
 
+#bm25 인덱스=> 제목,내용 기준으로 한거
+        self.merged_corpus_tokens = [
+            (doc['title'] + " " + doc['full_text']).split()
+            for doc in self.documents
+        ]
+        self.bm25_merged_index = BM25Okapi(self.merged_corpus_tokens)
+
         # 문서 청킹
         # self._chunk_documents()
 
@@ -81,7 +91,68 @@ class AdvancedSchoolNoticeRAG:
 
         # 캐시 저장
         self._save_to_cache()
+
+#사용자가 입력한 질문에 포함된 키워드로 제목이랑 내용에 키워드가 모두 포함된 문서들만 골라서 return함
+    def filter_documents_by_bm25(self, query: str, top_k: int = 20) -> list:
+        query_tokens = query.strip().split()
+
+        #bm25점수 계산
+        scores = self.bm25_merged_index.get_scores(query_tokens)
+
+        top_indices = np.argsort(scores)[::-1][:top_k]
+
+        # 선택된 문서들
+        filtered_docs = [self.documents[i] for i in top_indices if scores[i] > 0]
+
+        print(f"\n[BM25 기반 1차 필터링 결과]")
+        print(f" - 입력된 쿼리 토큰: {query_tokens}")
+        print(f" - 선택된 문서 수: {len(filtered_docs)}")
+        for idx in top_indices:
+            if scores[idx] > 0:
+                doc = self.documents[idx]
+                score = scores[idx]
+                print(f" - {doc['title']} (BM25 점수: {score:.4f})")
+
+        return filtered_docs
     
+    #필터링된 문서들로 FAISS 인덱스 새로 생성
+    def build_faiss_index_from_filtered_documents(self, filtered_documents):
+        if not filtered_documents:
+            raise ValueError("필터링된 문서가 없습니다.")
+
+        #이게 제목+내용
+        document_texts = [
+        doc['title'] + "\n\n" + doc['full_text']
+        for doc in filtered_documents
+    ]
+
+        embeddings = self.embedding_model.encode(
+            document_texts,
+            batch_size=8,
+            show_progress_bar=True,
+            convert_to_numpy=True
+        )
+
+        index = faiss.IndexFlatIP(self.embedding_dim)
+        faiss.normalize_L2(embeddings)
+        index.add(embeddings.astype(np.float32))
+
+        print(f"\n[FAISS 인덱스 생성 완료] 문서 수: {len(filtered_documents)}")
+
+        return index, filtered_documents
+    
+    def search_with_faiss(self, query: str, top_k: int = 5):
+        # 쿼리를 임베딩으로 변환
+        query_embedding = self.embedding_model.encode([query])
+        faiss.normalize_L2(query_embedding)
+
+        # faiss 인덱스에서 검색
+        distances, indices = self.faiss_index.search(query_embedding.astype(np.float32), top_k)
+
+        # top_k 문서 반환
+        results = [self.documents[i] for i in indices[0]]
+        return results
+
     
     def _should_use_cache(self) -> bool:
         """캐시 사용 여부 결정"""
@@ -117,6 +188,14 @@ class AdvancedSchoolNoticeRAG:
             #     self.chunk_to_doc_map = data['chunk_to_doc_map']
             
             print("Use cache")
+
+
+            self.merged_corpus_tokens = [
+                # doc['full_text'].split() #이게 내용가지고 토큰 만드는거고
+                (doc['title'] + " " + doc['full_text']).split() #이게 제목+내용으로 토큰만드는거
+                for doc in self.documents
+            ]
+            self.bm25_merged_index = BM25Okapi(self.merged_corpus_tokens)
 
 
         except Exception as e:
@@ -165,7 +244,12 @@ class AdvancedSchoolNoticeRAG:
             raise ValueError("청크가 없습니다. 문서를 먼저 로드해주세요.")
 
         # 모든 청크의 임베딩 생성
-        document_texts = [doucment['full_text'] for doucment in self.documents]
+        document_texts = [
+        doc['title'] + "\n\n" + doc['full_text']
+        for doc in self.documents
+        ]
+        #밑에껀 니가 해놓은거라 안 지웠음
+        # document_texts = [doucment['full_text'] for doucment in self.documents]
 
         embeddings = self.embedding_model.encode(
             document_texts,
@@ -225,10 +309,35 @@ class AdvancedSchoolNoticeRAG:
     
     def answer_question(self, query: str, streaming: bool = False) -> Dict[str, Any]:
         """동기 질의응답 (스트리밍 옵션)"""
+        #1차
+        filtered_docs = self.filter_documents_by_bm25(query, top_k=20)
+        #2차 의미기반
+        faiss_index, limited_documents = self.build_faiss_index_from_filtered_documents(filtered_docs)
+        #faiss 검색
+        query_embedding = self.embedding_model.encode([query])
+        faiss.normalize_L2(query_embedding)
+        distances, indices = faiss_index.search(query_embedding.astype(np.float32), top_k=5)
+
+        print("\n[2차 FAISS 의미 검색 결과]")
+        print(f" - 검색된 문서 인덱스: {indices[0]}")
+        print(f" - 거리(유사도): {distances[0]}")
+
+        #faiss로 찾은 문서
+        search_results = [limited_documents[i] for i in indices[0]]
+
+        print("\n[FAISS로 검색된 문서들]")
+        for doc in search_results:
+            print(f" - {doc['title']}")
+        
+        
+        #ChatBotGraph에 전달
+        self.graph = ChatBotGraph(self.embedding_model, faiss_index, limited_documents)
+
         return asyncio.run(self.answer_question_async(query))
         
 if __name__ == "__main__":
     test = AdvancedSchoolNoticeRAG("./output.csv", "Qwen/Qwen3-Embedding-8B")
+    #로컬에서 내가 쓴건 그냥 all-mpnet-base-v2 모델 Qwen/Qwen3-Embedding-8B
     while True:
         query = input("질문: ")
         if query == 'exit':
