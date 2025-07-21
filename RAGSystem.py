@@ -12,8 +12,6 @@ from ChatBotGraph import ChatBotGraph
 from langchain_core.messages import HumanMessage
 from typing import Dict, Any
 import asyncio
-#이건 로컬에서 썼던건데 원격으로 둬서 그냥 주석 처리함
-# from sentence_transformers import SentenceTransformer
 
 #pip install rank-bm25
 from rank_bm25 import BM25Okapi
@@ -95,20 +93,25 @@ class AdvancedSchoolNoticeRAG:
         self._save_to_cache()
 
 #사용자가 입력한 질문에 포함된 키워드로 제목이랑 내용에 키워드가 모두 포함된 문서들만 골라서 return함
-    def filter_documents_by_keyword_inclusion(self, query: str) -> list:
-        keywords = query.strip().split() #공백기준
+    def filter_documents_by_bm25(self, query: str, top_k: int = 20) -> list:
+        query_tokens = query.strip().split()
 
-        filtered_docs = []
-        for doc in self.documents:
-            text = doc['title'] + " " + doc['full_text']
+        #bm25점수 계산
+        scores = self.bm25_merged_index.get_scores(query_tokens)
 
-            # 모든 키워드가 있어야 필터링됨 -> any:하나라도 포함되면 통과시키고 싶으면=근데 all하는게 좋음 any는 상관없는거 까지 다 포함시켜서
-            if all(keyword in text for keyword in keywords):
-                filtered_docs.append(doc)
+        top_indices = np.argsort(scores)[::-1][:top_k]
 
-        print(f"\n[단순 키워드 포함 필터링 결과: {query}]")
-        for doc in filtered_docs:
-            print(f" - {doc['title']}")
+        # 선택된 문서들
+        filtered_docs = [self.documents[i] for i in top_indices if scores[i] > 0]
+
+        print(f"\n[BM25 기반 1차 필터링 결과]")
+        print(f" - 입력된 쿼리 토큰: {query_tokens}")
+        print(f" - 선택된 문서 수: {len(filtered_docs)}")
+        for idx in top_indices:
+            if scores[idx] > 0:
+                doc = self.documents[idx]
+                score = scores[idx]
+                print(f" - {doc['title']} (BM25 점수: {score:.4f})")
 
         return filtered_docs
     
@@ -123,7 +126,6 @@ class AdvancedSchoolNoticeRAG:
         for doc in filtered_documents
     ]
 
-#임베딩 벡터로: sentence_transformers 모델(로컬)-> 원격에서 돌릴꺼면 qwen 이겠지?
         embeddings = self.embedding_model.encode(
             document_texts,
             batch_size=8,
@@ -135,7 +137,21 @@ class AdvancedSchoolNoticeRAG:
         faiss.normalize_L2(embeddings)
         index.add(embeddings.astype(np.float32))
 
+        print(f"\n[FAISS 인덱스 생성 완료] 문서 수: {len(filtered_documents)}")
+
         return index, filtered_documents
+    
+    def search_with_faiss(self, query: str, top_k: int = 5):
+        # 쿼리를 임베딩으로 변환
+        query_embedding = self.embedding_model.encode([query])
+        faiss.normalize_L2(query_embedding)
+
+        # faiss 인덱스에서 검색
+        distances, indices = self.faiss_index.search(query_embedding.astype(np.float32), top_k)
+
+        # top_k 문서 반환
+        results = [self.documents[i] for i in indices[0]]
+        return results
 
     
     def _should_use_cache(self) -> bool:
@@ -293,9 +309,27 @@ class AdvancedSchoolNoticeRAG:
     
     def answer_question(self, query: str, streaming: bool = False) -> Dict[str, Any]:
         """동기 질의응답 (스트리밍 옵션)"""
-        filtered_docs = self.filter_documents_by_keyword_inclusion(query)
-        #필터링된 문서로 FAISS 인덱스 재구성
+        #1차
+        filtered_docs = self.filter_documents_by_bm25(query, top_k=20)
+        #2차 의미기반
         faiss_index, limited_documents = self.build_faiss_index_from_filtered_documents(filtered_docs)
+        #faiss 검색
+        query_embedding = self.embedding_model.encode([query])
+        faiss.normalize_L2(query_embedding)
+        distances, indices = faiss_index.search(query_embedding.astype(np.float32), top_k=5)
+
+        print("\n[2차 FAISS 의미 검색 결과]")
+        print(f" - 검색된 문서 인덱스: {indices[0]}")
+        print(f" - 거리(유사도): {distances[0]}")
+
+        #faiss로 찾은 문서
+        search_results = [limited_documents[i] for i in indices[0]]
+
+        print("\n[FAISS로 검색된 문서들]")
+        for doc in search_results:
+            print(f" - {doc['title']}")
+        
+        
         #ChatBotGraph에 전달
         self.graph = ChatBotGraph(self.embedding_model, faiss_index, limited_documents)
 
@@ -303,7 +337,7 @@ class AdvancedSchoolNoticeRAG:
         
 if __name__ == "__main__":
     test = AdvancedSchoolNoticeRAG("./output.csv", "Qwen/Qwen3-Embedding-8B")
-    #로컬에서 내가 쓴건 그냥 all-mpnet-base-v2 모델 
+    #로컬에서 내가 쓴건 그냥 all-mpnet-base-v2 모델 Qwen/Qwen3-Embedding-8B
     while True:
         query = input("질문: ")
         if query == 'exit':
