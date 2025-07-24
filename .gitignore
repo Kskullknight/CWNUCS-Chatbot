@@ -4,3 +4,5 @@ __pycache__
 vLLM/model
 .claude
 .pids
+vLLM/vllm_server.log
+APIServer/api_server.log
