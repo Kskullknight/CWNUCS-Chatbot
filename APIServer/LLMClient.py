@@ -5,9 +5,10 @@ import time
 from typing import Iterator
 import json
 from dotenv import load_dotenv
+from pathlib import Path
 
 # 프로젝트 루트에서 .env 파일 로드
-load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
+load_dotenv(os.path.join(Path(__file__).parent.parent, '.env'))
 
 # GPU 설정은 start_all_services.sh에서 관리
 # os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
@@ -29,7 +30,7 @@ class LLMAPIClient:
         
         # 환경 변수에서 포트 읽기
         if base_url is None:
-            vllm_port = os.getenv('VLLM_PORT', '8000')
+            vllm_port = os.getenv('VLLM_SERVER_PORT', '8000')
             base_url = f"http://localhost:{vllm_port}"
         
         self.base_url = base_url.rstrip('/')
@@ -49,6 +50,7 @@ class LLMAPIClient:
         
     def call_llm_stream(self, prompt: str) -> Iterator[str]:
         """스트리밍 LLM API 호출"""
+        print(prompt)
         request_data = {
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": self.max_tokens,

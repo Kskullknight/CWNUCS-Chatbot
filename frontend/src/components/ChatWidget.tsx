@@ -56,7 +56,7 @@ const ChatWidget: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message: inputValue }),
+        body: JSON.stringify({ message: userMessage.text }),
       });
 
       if (!response.ok) {
