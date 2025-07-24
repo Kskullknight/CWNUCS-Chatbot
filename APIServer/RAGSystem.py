@@ -12,9 +12,14 @@ from ChatBotGraph import ChatBotGraph
 from langchain_core.messages import HumanMessage
 from typing import Dict, Any
 import asyncio
+from dotenv import load_dotenv
+import sys
 
+# 프로젝트 루트에서 .env 파일 로드
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = os.getenv("API_GPU_DEVICES", "1")
 
 
 class AdvancedSchoolNoticeRAG:
@@ -30,7 +35,7 @@ class AdvancedSchoolNoticeRAG:
         self.data_file_path = data_file_path
         self.model_name = model_name
         
-        self.embedding_model = SentenceTransformer("Qwen/Qwen3-Embedding-8B")
+        self.embedding_model = SentenceTransformer(self.model_name)
         self.embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
         
         self.llm_client = LLMAPIClient()
@@ -209,8 +214,6 @@ class AdvancedSchoolNoticeRAG:
     
         
     async def answer_question_async(self, query: str) -> Dict[str, Any]:
-        """비동기 질의응답 (스트리밍 옵션)"""
-        
 
         # 워크플로우 실행
         result = await self.graph.start_graph(query)
@@ -223,12 +226,12 @@ class AdvancedSchoolNoticeRAG:
         }
     
     
-    def answer_question(self, query: str, streaming: bool = False) -> Dict[str, Any]:
+    def answer_question(self, query: str) -> Dict[str, Any]:
         """동기 질의응답 (스트리밍 옵션)"""
         return asyncio.run(self.answer_question_async(query))
         
 if __name__ == "__main__":
-    test = AdvancedSchoolNoticeRAG("./output.csv", "Qwen/Qwen3-Embedding-8B")
+    test = AdvancedSchoolNoticeRAG("./data/output.csv", "Qwen/Qwen3-Embedding-8B")
     while True:
         query = input("질문: ")
         if query == 'exit':

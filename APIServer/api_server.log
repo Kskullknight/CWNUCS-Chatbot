@@ -1,0 +1,50 @@
+VLLM_PORT : 22222
+API_PORT : 8001
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:01,  1.69it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.69it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  1.55it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:01<00:00,  2.06it/s]
+INFO:     Started server process [250356]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+Use cache
+INFO:     127.0.0.1:40192 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40196 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55536 - "POST /api/chat HTTP/1.1" 200 OK
+[ChatBotGraph] 워크플로우 시작: 휴학하는 방법을 알려줘
+[ChatBotGraph] 노드 도착: query_processing
+[ChatBotGraph] 원본 쿼리: 휴학하는 방법을 알려줘
+[ChatBotGraph] 처리된 쿼리: 휴학하는 방법을 알려줘
+[ChatBotGraph] 노드 도착: document_retrieval
+[ChatBotGraph] 검색 쿼리: 휴학하는 방법을 알려줘
+[ChatBotGraph] BM25 검색 결과: 2개 문서
+[ChatBotGraph] 문서 59: 2025학년도 1학기 휴학 및 복학 안내... (BM25 점수: 4.179)
+[ChatBotGraph] 문서 79: 2025학년도 2학기 휴학 및 복학 안내... (BM25 점수: 1.901)
+[ChatBotGraph] 키워드 검색 후보: 2개, 최종 선택: 0개
+[ChatBotGraph] 노드 도착: no_documents_found
+[ChatBotGraph] 검색 결과 없음
+[ChatBotGraph] 워크플로우 완료
+INFO:     127.0.0.1:55544 - "POST /api/chat HTTP/1.1" 200 OK
+[ChatBotGraph] 워크플로우 시작: 휴학 신청하는 방법
+[ChatBotGraph] 노드 도착: query_processing
+[ChatBotGraph] 원본 쿼리: 휴학 신청하는 방법
+[ChatBotGraph] 처리된 쿼리: 휴학 신청하는 방법
+[ChatBotGraph] 노드 도착: document_retrieval
+[ChatBotGraph] 검색 쿼리: 휴학 신청하는 방법
+[ChatBotGraph] BM25 검색 결과: 35개 문서
+[ChatBotGraph] 문서 79: 2025학년도 2학기 휴학 및 복학 안내... (BM25 점수: 5.968)
+[ChatBotGraph] 문서 59: 2025학년도 1학기 휴학 및 복학 안내... (BM25 점수: 5.614)
+[ChatBotGraph] 문서 42: 2024년도 2학기 고졸 후학습자 장학사업(희망사다리Ⅱ유형) 신규장학생 2차 신청기간 안내... (BM25 점수: 4.092)
+[ChatBotGraph] 문서 176: 2025-1학기 전공 페스타 참여 학생 출석 인정 방법 안내... (BM25 점수: 3.039)
+[ChatBotGraph] 문서 60: ☆필독☆ 2024-2학기 심층상담(04분반, 최도진교수님) 방법 공지... (BM25 점수: 2.990)
+[ChatBotGraph] 키워드 검색 후보: 35개, 최종 선택: 4개
+[ChatBotGraph] 문서 ID: 79, 제목: 2025학년도 2학기 휴학 및 복학 안내, 유사도: 0.583
+[ChatBotGraph] 문서 ID: 59, 제목: 2025학년도 1학기 휴학 및 복학 안내, 유사도: 0.553
+[ChatBotGraph] 문서 ID: 38, 제목: ☆2025.8월 졸업예정자☆ 2025학년도 2학기 학사학위취득 및 수료 유예 신청 안내, 유사도: 0.535
+[ChatBotGraph] 문서 ID: 128, 제목: 2025학년도 1학기 학사학위취득 및 수료 유예 신청 안내, 유사도: 0.522
+[ChatBotGraph] 노드 도착: context_preparation
+[ChatBotGraph] 검색된 문서 수: 4
+[ChatBotGraph] 노드 도착: streaming_answer_generation
+[ChatBotGraph] 답변 생성 시작
+[ChatBotGraph] 노드 도착: response_validation
+[ChatBotGraph] 답변 길이: 98, 신뢰도: 0.548
+[ChatBotGraph] 워크플로우 완료
+INFO:     127.0.0.1:48390 - "POST /api/chat HTTP/1.1" 200 OK

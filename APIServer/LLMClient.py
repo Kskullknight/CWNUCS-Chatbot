@@ -4,8 +4,13 @@ import requests
 import time
 from typing import Iterator
 import json
+from dotenv import load_dotenv
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
+# 프로젝트 루트에서 .env 파일 로드
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
+
+# GPU 설정은 start_all_services.sh에서 관리
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
 
 
 class ChatMessage(BaseModel):
@@ -18,9 +23,14 @@ class LLMAPIClient:
 
     def __init__(
         self, 
-        base_url="http://localhost:8000",
-        timeout: int = 3000000000, 
+        base_url=None,
+        timeout: int = 3000, 
         max_retries: int = 3):
+        
+        # 환경 변수에서 포트 읽기
+        if base_url is None:
+            vllm_port = os.getenv('VLLM_PORT', '8000')
+            base_url = f"http://localhost:{vllm_port}"
         
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
